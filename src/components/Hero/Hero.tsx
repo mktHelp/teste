@@ -1,4 +1,5 @@
 import { brand } from '../../config/brand';
+import { trackCtaClick } from '../../analytics/events';
 import Icon from '../Icon';
 import styles from './Hero.module.css';
 
@@ -27,7 +28,7 @@ export default function Hero() {
           width={1671}
           height={496}
         />
-        <a href="#formulario" className={`btn ${styles.topCta}`}>
+        <a href="#formulario" className={`btn ${styles.topCta}`} onClick={() => trackCtaClick('topbar')}>
           Quero ser franqueado
         </a>
       </header>
@@ -48,7 +49,7 @@ export default function Hero() {
             ponta e uma rede que cresce junto com você.
           </p>
 
-          <a href="#formulario" className="btn btn-accent btn-lg">
+          <a href="#formulario" className="btn btn-accent btn-lg" onClick={() => trackCtaClick('hero')}>
             Quero ser franqueado
             <Icon name="arrow-right" size={18} strokeWidth={2.25} />
           </a>

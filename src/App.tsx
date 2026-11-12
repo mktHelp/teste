@@ -2,6 +2,7 @@ import Hero from './components/Hero/Hero';
 import Benefits from './components/Benefits/Benefits';
 import LeadForm from './components/LeadForm/LeadForm';
 import Footer from './components/Footer/Footer';
+import GtmDebugPanel from './components/GtmDebugPanel/GtmDebugPanel';
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <LeadForm />
       </main>
       <Footer />
+      <GtmDebugPanel />
     </>
   );
 }

@@ -1,7 +1,15 @@
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type FormEvent, type ReactNode } from 'react';
 import type { LeadFormData, LeadFormErrors, SubmitStatus } from '../../types/lead';
 import { UFS, maskWhatsapp, validateLead } from '../../utils/validation';
 import { submitLead } from '../../services/leadService';
+import {
+  createLeadId,
+  trackFormError,
+  trackFormStart,
+  trackFormView,
+  trackLeadConversion,
+  trackSubmitError,
+} from '../../analytics/events';
 import Icon from '../Icon';
 import styles from './LeadForm.module.css';
 
@@ -25,6 +33,30 @@ export default function LeadForm() {
   const [data, setData] = useState<LeadFormData>(initialData);
   const [errors, setErrors] = useState<LeadFormErrors>({});
   const [status, setStatus] = useState<SubmitStatus>('idle');
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // form_view: quando ao menos 40% da seção do formulário aparece na tela
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          trackFormView();
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // form_start: primeiro foco em qualquer campo
+  const handleFocus = (e: FocusEvent<HTMLFormElement>) => {
+    const name = (e.target as EventTarget & { name?: string }).name;
+    if (name) trackFormStart(name);
+  };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -40,20 +72,32 @@ export default function LeadForm() {
     const validation = validateLead(data);
     setErrors(validation);
 
-    const firstError = Object.keys(validation)[0];
-    if (firstError) {
-      document.querySelector<HTMLElement>(`[name="${firstError}"]`)?.focus();
+    const errorFields = Object.keys(validation);
+    if (errorFields.length) {
+      trackFormError(errorFields);
+      document.querySelector<HTMLElement>(`[name="${errorFields[0]}"]`)?.focus();
       return;
     }
 
     setStatus('submitting');
+    const leadId = createLeadId();
     try {
-      await submitLead(data);
-      setStatus('success');
-      setData(initialData);
-    } catch {
+      await submitLead(data, leadId);
+    } catch (err) {
+      trackSubmitError(err instanceof Error ? err.message : 'erro desconhecido');
       setStatus('error');
+      return;
     }
+
+    // Conversão só depois da confirmação do webhook (evita conversão sem lead).
+    // Falha de rastreamento nunca deve impedir a tela de sucesso.
+    try {
+      await trackLeadConversion(data, leadId);
+    } catch (err) {
+      console.warn('[gtm] falha ao registrar conversão', err);
+    }
+    setStatus('success');
+    setData(initialData);
   };
 
   const a11y = (field: keyof LeadFormData) => ({
@@ -85,7 +129,7 @@ export default function LeadForm() {
   );
 
   return (
-    <section id="formulario" className={styles.section} aria-labelledby="form-title">
+    <section ref={sectionRef} id="formulario" className={styles.section} aria-labelledby="form-title">
       <div className={`container ${styles.wrapper}`}>
         <div className={styles.intro}>
           <span className="section-eyebrow">02 · Próximo passo</span>
@@ -119,7 +163,7 @@ export default function LeadForm() {
               </button>
             </div>
           ) : (
-            <form className={styles.form} onSubmit={handleSubmit} noValidate>
+            <form id="form-quero-ser-franqueado" className={styles.form} onSubmit={handleSubmit} onFocus={handleFocus} noValidate>
               {renderField({
                 field: 'nome',
                 label: 'Nome completo',
