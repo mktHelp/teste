@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type FormEvent, type ReactNode } from 'react';
-import type { LeadFormData, LeadFormErrors, SubmitStatus } from '../../types/lead';
+import {
+  CAPITAL_LABELS,
+  CAPITAL_OPTIONS,
+  type LeadFormData,
+  type LeadFormErrors,
+  type SubmitStatus,
+} from '../../types/lead';
 import { UFS, maskWhatsapp, validateLead } from '../../utils/validation';
-import { submitLead } from '../../services/leadService';
+import { buildLeadPayload, queuePendingLead, removePendingLead, sendLead } from '../../services/leadService';
 import {
   createLeadId,
   trackFormError,
@@ -24,16 +30,15 @@ const initialData: LeadFormData = {
 
 const steps = ['Envie seus dados', 'Conversa com um consultor', 'Apresentação da franquia'];
 
-const capitalOptions = [
-  { value: 'sim', label: 'Sim' },
-  { value: 'nao', label: 'Não' },
-] as const;
+const capitalOptions = CAPITAL_OPTIONS.map((value) => ({ value, label: CAPITAL_LABELS[value] }));
 
 export default function LeadForm() {
   const [data, setData] = useState<LeadFormData>(initialData);
   const [errors, setErrors] = useState<LeadFormErrors>({});
   const [status, setStatus] = useState<SubmitStatus>('idle');
   const sectionRef = useRef<HTMLElement>(null);
+  // Mesmo leadId em todos os reenvios do mesmo cadastro → o n8n nunca duplica a linha
+  const leadIdRef = useRef<string | null>(null);
 
   // form_view: quando ao menos 40% da seção do formulário aparece na tela
   useEffect(() => {
@@ -80,14 +85,21 @@ export default function LeadForm() {
     }
 
     setStatus('submitting');
-    const leadId = createLeadId();
+    leadIdRef.current ??= createLeadId();
+    const leadId = leadIdRef.current;
+    const payload = buildLeadPayload(data, leadId);
+
     try {
-      await submitLead(data, leadId);
+      await sendLead(payload); // já faz até 3 tentativas
     } catch (err) {
+      // Nada se perde: guarda no navegador e reenvia na próxima visita
+      queuePendingLead(payload);
       trackSubmitError(err instanceof Error ? err.message : 'erro desconhecido');
       setStatus('error');
       return;
     }
+    removePendingLead(leadId);
+    leadIdRef.current = null;
 
     // Conversão só depois da confirmação do webhook (evita conversão sem lead).
     // Falha de rastreamento nunca deve impedir a tela de sucesso.
@@ -298,7 +310,8 @@ export default function LeadForm() {
 
               {status === 'error' && (
                 <p className={styles.alert} role="alert">
-                  Não foi possível enviar agora. Tente novamente em instantes.
+                  Não conseguimos enviar agora. Seus dados ficaram salvos neste aparelho e serão
+                  reenviados automaticamente — ou toque no botão para tentar de novo.
                 </p>
               )}
 

@@ -33,7 +33,8 @@ O código envia eventos ao `dataLayer`. Tags, pixels e conversões são configur
 | **`generate_lead`** | **CONVERSÃO** — só após o webhook confirmar | ver abaixo |
 
 `generate_lead` leva: `lead_id` (o mesmo enviado ao n8n, use como ID de deduplicação),
-`lead_uf`, `lead_possui_capital`, `lead_qualificado` (true se possui capital), `currency`, `value`
+`lead_uf`, `lead_possui_capital`, `lead_qualificado` (true se possui capital),
+`lead_temperatura` (`quente` = sim · `morno` = ainda não sei · `frio` = não), `currency`, `value`
 e `user_data.sha256_email_address` / `user_data.sha256_phone_number`.
 **Nenhum dado pessoal vai em texto puro para o dataLayer**: e-mail (minúsculo) e telefone
 (`+55DDDNÚMERO`) seguem só como hash SHA-256, formato aceito pelas conversões otimizadas do
@@ -63,13 +64,66 @@ Os logos oficiais estão em `public/`.
 - **Marca, contatos e redes**: `src/config/brand.ts` (contatos, endereço e CNPJ ainda são placeholders)
 - **Números do Hero**: `src/components/Hero/Hero.tsx` (placeholders, troque por dados oficiais)
 - **Textos**: em cada componente de `src/components/`
-- **Envio do formulário**: `VITE_LEAD_ENDPOINT` no arquivo `.env` (já aponta para o webhook n8n).
-  Sem essa variável, o envio é simulado e aparece no console. Depois de alterar o `.env`, reinicie o `npm run dev`.
-  O webhook precisa aceitar CORS do domínio onde a página for publicada.
+- **Envio do formulário**: variável `VITE_LEAD_ENDPOINT` (ver "Deploy" abaixo).
+
+## Deploy (Vercel)
+
+O `.env` **não vai para o GitHub**. A Vercel só conhece as variáveis cadastradas no painel:
+**Vercel → projeto `teste` → Settings → Environment Variables** (Production e Preview):
+
+| Variável | Valor |
+|---|---|
+| `VITE_LEAD_ENDPOINT` | `https://n8n.helpmultas.com/webhook/f97f8177-3824-45c4-ae6a-bb4c90c34277` (production URL do n8n) |
+| `VITE_GTM_ID` | `GTM-XXXXXXX` (opcional; vazio = GTM em modo simulação) |
+
+Depois de cadastrar, faça **Redeploy** — variáveis `VITE_*` são gravadas no build.
+
+**Proteção contra perda de lead:** o build de produção **falha de propósito** se `VITE_LEAD_ENDPOINT`
+não existir (mensagem `[funil] VITE_LEAD_ENDPOINT não definido...` no log da Vercel). Em produção o
+envio nunca é simulado. O modo simulado só existe em `npm run dev` / `npm run dev:mock`.
 
 ## Campos do formulário
 
-Nome, WhatsApp (com máscara), e-mail, cidade, UF e "Possui capital para investir?" (Sim/Não) — todos obrigatórios e validados.
+Nome, WhatsApp (com máscara), e-mail, cidade, UF e "Possui capital para investir?"
+(**Sim / Não / Ainda não sei**) — todos obrigatórios e validados.
+
+### Nenhum lead se perde
+
+1. **Timeout** de 15s por tentativa e **até 3 tentativas** (0,8s → 1,6s) para falha de rede, 408, 429 e 5xx.
+2. **Idempotência:** o mesmo `leadId` é usado em todos os reenvios; o n8n grava com
+   *append or update* pela coluna `leadId`, então reenvio nunca duplica linha.
+3. **Fila local:** se as 3 tentativas falharem, o lead fica salvo no navegador (até 7 dias) e é
+   reenviado automaticamente na próxima visita, com o campo `reenviadoEm`.
+4. **Confirmação real:** o n8n só responde 200 **depois** de gravar na planilha. Sem 200, o formulário
+   mostra o erro e não dispara a conversão `generate_lead`.
+
+## Workflow n8n
+
+Arquivo importável: [`n8n/workflow-captura-leads.json`](n8n/workflow-captura-leads.json)
+(gerado por `node n8n/build-workflow.mjs`, onde ficam o HTML do e-mail e as colunas).
+
+```
+Webhook (POST) → Validar lead ─┬─ ok ──→ Google Sheets (append or update por leadId)
+                               │            → Responder 200 → E-mail de confirmação (Resend)
+                               └─ inválido → Responder 400
+```
+
+**Para ativar:**
+1. **Desative o workflow atual** que usa o mesmo webhook (o path é o mesmo) e importe o JSON
+   (n8n → *Import from File*).
+2. Crie uma planilha com a aba **`Leads`** e estes cabeçalhos na linha 1:
+   `leadId, recebidoEm, enviadoEm, nome, whatsapp, email, cidade, uf, possuiCapital,
+   utm_source, utm_medium, utm_campaign, utm_content, utm_term, origem, pagina`.
+   Cole o ID da planilha no nó **Gravar no Google Sheets** e selecione a credencial do Google.
+3. No nó **E-mail de confirmação (Resend)**: crie uma credencial *Header Auth* com
+   `Authorization: Bearer re_SUA_CHAVE` e troque o remetente `franquias@SEU-DOMINIO-VERIFICADO.com.br`
+   por um endereço de domínio verificado no Resend.
+4. Publique/ative o workflow. A production URL continua
+   `https://n8n.helpmultas.com/webhook/f97f8177-3824-45c4-ae6a-bb4c90c34277`.
+
+O e-mail roda depois da resposta e com *continuar em caso de erro* + 3 tentativas: falha no Resend
+nunca derruba o lead. Dados do formulário são escapados no HTML do e-mail e gravados como texto puro
+(`RAW`) na planilha.
 
 ### UTMs
 
@@ -92,7 +146,8 @@ Payload enviado (POST JSON):
   "email": "maria@email.com",
   "cidade": "Campinas",
   "uf": "SP",
-  "possuiCapital": "sim",
+  "possuiCapital": "ainda_nao_sei",
+  "possuiCapitalLabel": "Ainda não sei",
   "origem": "funil-quero-ser-franqueado",
   "utm_source": "facebook",
   "utm_medium": "cpc",

@@ -158,10 +158,15 @@
   margin-bottom: 8px;
 }
 
+/* Mobile: Sim | Não lado a lado, "Ainda não sei" em linha inteira */
 .radioGroup {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.radioGroup > .option:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .option {
@@ -301,6 +306,14 @@
 
   .input {
     font-size: 15px;
+  }
+
+  .radioGroup {
+    grid-template-columns: 1fr 1fr 1.4fr;
+  }
+
+  .radioGroup > .option:last-child:nth-child(odd) {
+    grid-column: auto;
   }
 }
 

@@ -76,6 +76,9 @@ export async function trackLeadConversion(data: LeadFormData, leadId: string) {
     lead_uf: data.uf,
     lead_possui_capital: data.possuiCapital,
     lead_qualificado: data.possuiCapital === 'sim',
+    // quente = tem capital · morno = ainda não sabe · frio = não tem
+    lead_temperatura:
+      data.possuiCapital === 'sim' ? 'quente' : data.possuiCapital === 'ainda_nao_sei' ? 'morno' : 'frio',
     currency: 'BRL',
     value: 0, // defina um valor por lead se for otimizar campanhas por valor
     ...getUtms(),
