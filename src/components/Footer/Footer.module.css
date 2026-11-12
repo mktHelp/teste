@@ -1,0 +1,85 @@
+/* Mobile first — fundo Canvas Dark do DS */
+
+.footer {
+  background: linear-gradient(180deg, var(--navy-1000) 0%, var(--navy-950) 100%);
+  color: rgba(255, 255, 255, 0.72);
+  padding-top: 48px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  gap: 32px;
+  padding-bottom: 32px;
+}
+
+.logo {
+  height: 40px;
+  width: auto;
+  margin: 0 0 12px -8px;
+}
+
+.brand p {
+  max-width: 340px;
+}
+
+.heading {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.list a,
+.bottom a {
+  transition: color 0.15s ease;
+}
+
+.list a:hover,
+.bottom a:hover {
+  color: var(--amber-400);
+}
+
+.bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* ≥ 768 · Tablet */
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: 2fr 1.5fr 1fr;
+    gap: 48px;
+  }
+
+  .logo {
+    height: 48px;
+  }
+
+  .bottom {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
